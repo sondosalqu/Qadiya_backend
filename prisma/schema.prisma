@@ -1,0 +1,818 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  previewFeatures     = ["partialIndexes"]
+  importFileExtension = "js"
+  moduleFormat        = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model board_connections {
+  connection_id                                           BigInt        @id @default(autoincrement())
+  progress_id                                             BigInt
+  from_node_id                                            BigInt
+  to_node_id                                              BigInt
+  relation_type                                           String        @db.VarChar(30)
+  custom_label                                            String?       @db.VarChar(100)
+  created_at                                              DateTime      @default(now()) @db.Timestamptz(6)
+  board_nodes_board_connections_from_node_idToboard_nodes board_nodes   @relation("board_connections_from_node_idToboard_nodes", fields: [from_node_id], references: [node_id], onDelete: Cascade, onUpdate: NoAction)
+  case_progress                                           case_progress @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  board_nodes_board_connections_to_node_idToboard_nodes   board_nodes   @relation("board_connections_to_node_idToboard_nodes", fields: [to_node_id], references: [node_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([progress_id], map: "ix_board_conn_prog")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model board_nodes {
+  node_id                                                       BigInt               @id @default(autoincrement())
+  progress_id                                                   BigInt
+  person_id                                                     BigInt?
+  evidence_id                                                   BigInt?
+  statement_id                                                  BigInt?
+  report_id                                                     BigInt?
+  observation_id                                                BigInt?
+  timeline_event_id                                             BigInt?
+  note_label                                                    String?              @db.VarChar(200)
+  pos_x                                                         Decimal              @default(0) @db.Decimal(10, 2)
+  pos_y                                                         Decimal              @default(0) @db.Decimal(10, 2)
+  color                                                         String?              @db.VarChar(20)
+  created_at                                                    DateTime             @default(now()) @db.Timestamptz(6)
+  board_connections_board_connections_from_node_idToboard_nodes board_connections[]  @relation("board_connections_from_node_idToboard_nodes")
+  board_connections_board_connections_to_node_idToboard_nodes   board_connections[]  @relation("board_connections_to_node_idToboard_nodes")
+  evidence_items                                                evidence_items?      @relation(fields: [evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  police_observations                                           police_observations? @relation(fields: [observation_id], references: [observation_id], onDelete: Cascade, onUpdate: NoAction)
+  persons                                                       persons?             @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  case_progress                                                 case_progress        @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  police_reports                                                police_reports?      @relation(fields: [report_id], references: [report_id], onDelete: Cascade, onUpdate: NoAction)
+  statements                                                    statements?          @relation(fields: [statement_id], references: [statement_id], onDelete: Cascade, onUpdate: NoAction)
+  timeline_events                                               timeline_events?     @relation(fields: [timeline_event_id], references: [event_id], onDelete: Cascade, onUpdate: NoAction, map: "fk_board_timeline")
+
+  @@unique([progress_id, evidence_id], map: "uq_board_evidence", where: raw("(evidence_id IS NOT NULL)"))
+  @@unique([progress_id, person_id], map: "uq_board_person", where: raw("(person_id IS NOT NULL)"))
+  @@unique([progress_id, statement_id], map: "uq_board_statement", where: raw("(statement_id IS NOT NULL)"))
+  @@index([progress_id], map: "ix_board_nodes_prog")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model case_progress {
+  progress_id                            BigInt                    @id @default(autoincrement())
+  case_id                                BigInt
+  user_id                                BigInt
+  assigned_by                            BigInt?
+  assigned_at                            DateTime                  @default(now()) @db.Timestamptz(6)
+  status                                 String                    @default("assigned") @db.VarChar(20)
+  points_remaining                       Int
+  is_admin_preview                       Boolean                   @default(false)
+  started_at                             DateTime?                 @db.Timestamptz(6)
+  last_activity_at                       DateTime?                 @db.Timestamptz(6)
+  completed_at                           DateTime?                 @db.Timestamptz(6)
+  finding_seq                            Int                       @default(0)
+  board_connections                      board_connections[]
+  board_nodes                            board_nodes[]
+  users_case_progress_assigned_byTousers users?                    @relation("case_progress_assigned_byTousers", fields: [assigned_by], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  cases                                  cases                     @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  users_case_progress_user_idTousers     users                     @relation("case_progress_user_idTousers", fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+  evidence_items                         evidence_items[]
+  final_conclusions                      final_conclusions?
+  findings                               findings[]
+  interview_sessions                     interview_sessions[]
+  lab_comparisons                        lab_comparisons[]
+  notebook_notes                         notebook_notes[]
+  progress_activity                      progress_activity[]
+  progress_revealed_facts                progress_revealed_facts[]
+  progress_unlocks                       progress_unlocks[]
+  timeline_conflicts                     timeline_conflicts[]
+  timeline_events                        timeline_events[]
+
+  @@unique([case_id, user_id])
+  @@unique([progress_id, case_id])
+  @@index([user_id], map: "ix_progress_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model case_solutions {
+  case_id                BigInt                   @id
+  solution_narrative     String
+  w_people               Decimal                  @default(0.35) @db.Decimal(4, 2)
+  w_evidence             Decimal                  @default(0.25) @db.Decimal(4, 2)
+  w_timeline             Decimal                  @default(0.20) @db.Decimal(4, 2)
+  w_relationships        Decimal                  @default(0.10) @db.Decimal(4, 2)
+  w_efficiency           Decimal                  @default(0.10) @db.Decimal(4, 2)
+  cases                  cases                    @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  solution_clues         solution_clues[]
+  solution_culprits      solution_culprits[]
+  solution_relationships solution_relationships[]
+  solution_timeline      solution_timeline[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model cases {
+  case_id                                 BigInt                @id @default(autoincrement())
+  case_number                             String                @unique @db.VarChar(30)
+  title                                   String                @db.VarChar(200)
+  short_description                       String?
+  case_type                               String                @db.VarChar(50)
+  case_status                             String                @default("unsolved") @db.VarChar(20)
+  priority                                String                @default("medium") @db.VarChar(10)
+  incident_at                             DateTime?             @db.Timestamptz(6)
+  incident_location                       String?               @db.VarChar(255)
+  victim_person_id                        BigInt?
+  summary_text                            String?
+  official_status                         String?               @db.VarChar(100)
+  initial_brief                           String?
+  cover_image_url                         String?
+  initial_points                          Int                   @default(100)
+  cost_start_interview                    Int                   @default(5)
+  cost_confront                           Int                   @default(2)
+  cost_visual_comparison                  Int                   @default(5)
+  cost_advanced_enhance                   Int                   @default(3)
+  publish_status                          String                @default("draft") @db.VarChar(20)
+  created_by                              BigInt
+  created_at                              DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at                              DateTime              @default(now()) @db.Timestamptz(6)
+  case_progress                           case_progress[]
+  case_solutions                          case_solutions?
+  users                                   users                 @relation(fields: [created_by], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  persons_cases_victim_person_idTopersons persons?              @relation("cases_victim_person_idTopersons", fields: [victim_person_id], references: [person_id], onUpdate: NoAction, map: "fk_cases_victim")
+  clues                                   clues[]
+  comparison_rules                        comparison_rules[]
+  crime_scenes                            crime_scenes[]
+  evidence_items                          evidence_items[]
+  image_regions                           image_regions[]
+  person_connections                      person_connections[]
+  persons_persons_case_idTocases          persons[]             @relation("persons_case_idTocases")
+  police_observations                     police_observations[]
+  police_reports                          police_reports[]
+  social_posts                            social_posts[]
+  statements                              statements[]
+  unlock_rules                            unlock_rules[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model character_knowledge {
+  knowledge_id            BigInt                    @id @default(autoincrement())
+  person_id               BigInt
+  fact_text               String
+  disclosure              String                    @db.VarChar(20)
+  reveal_clue_id          BigInt?
+  is_truthful             Boolean                   @default(true)
+  persons                 persons                   @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  clues                   clues?                    @relation(fields: [reveal_clue_id], references: [clue_id], onUpdate: NoAction, map: "fk_knowledge_clue")
+  progress_revealed_facts progress_revealed_facts[]
+}
+
+model clues {
+  clue_id                                                           BigInt                   @id @default(autoincrement())
+  case_id                                                           BigInt
+  code                                                              String                   @db.VarChar(30)
+  title                                                             String                   @db.VarChar(200)
+  description                                                       String?
+  character_knowledge                                               character_knowledge[]
+  cases                                                             cases                    @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  comparison_rules                                                  comparison_rules[]
+  findings                                                          findings[]
+  image_regions                                                     image_regions[]
+  solution_clues                                                    solution_clues[]
+  solution_relationships_solution_relationships_from_clue_idToclues solution_relationships[] @relation("solution_relationships_from_clue_idToclues")
+  solution_relationships_solution_relationships_to_clue_idToclues   solution_relationships[] @relation("solution_relationships_to_clue_idToclues")
+  solution_timeline                                                 solution_timeline[]
+  unlock_rules                                                      unlock_rules[]
+
+  @@unique([case_id, code])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model comparison_rules {
+  rule_id                                                   BigInt            @id @default(autoincrement())
+  case_id                                                   BigInt
+  region_a_id                                               BigInt
+  region_b_id                                               BigInt
+  min_similarity                                            Decimal           @default(0.600) @db.Decimal(4, 3)
+  result_clue_id                                            BigInt
+  cases                                                     cases             @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  image_regions_comparison_rules_region_a_idToimage_regions image_regions     @relation("comparison_rules_region_a_idToimage_regions", fields: [region_a_id], references: [region_id], onDelete: Cascade, onUpdate: NoAction)
+  image_regions_comparison_rules_region_b_idToimage_regions image_regions     @relation("comparison_rules_region_b_idToimage_regions", fields: [region_b_id], references: [region_id], onDelete: Cascade, onUpdate: NoAction)
+  clues                                                     clues             @relation(fields: [result_clue_id], references: [clue_id], onDelete: Cascade, onUpdate: NoAction)
+  lab_comparisons                                           lab_comparisons[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model conclusion_events {
+  conclusion_id     BigInt
+  event_id          BigInt
+  order_index       Int
+  final_conclusions final_conclusions @relation(fields: [conclusion_id], references: [conclusion_id], onDelete: Cascade, onUpdate: NoAction)
+  timeline_events   timeline_events   @relation(fields: [event_id], references: [event_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([conclusion_id, event_id])
+  @@unique([conclusion_id, order_index])
+}
+
+model conclusion_findings {
+  conclusion_id     BigInt
+  finding_id        BigInt
+  final_conclusions final_conclusions @relation(fields: [conclusion_id], references: [conclusion_id], onDelete: Cascade, onUpdate: NoAction)
+  findings          findings          @relation(fields: [finding_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([conclusion_id, finding_id])
+}
+
+model conclusion_people {
+  conclusion_id     BigInt
+  person_id         BigInt
+  final_conclusions final_conclusions @relation(fields: [conclusion_id], references: [conclusion_id], onDelete: Cascade, onUpdate: NoAction)
+  persons           persons           @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([conclusion_id, person_id])
+}
+
+model crime_scenes {
+  scene_id            BigInt          @id @default(autoincrement())
+  case_id             BigInt
+  title               String          @db.VarChar(200)
+  description         String?
+  image_url           String
+  image_width         Int?
+  image_height        Int?
+  display_order       Int             @default(0)
+  is_hidden_initially Boolean         @default(false)
+  cases               cases           @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  findings            findings[]
+  image_regions       image_regions[]
+  unlock_rules        unlock_rules[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model evidence_items {
+  evidence_id                                                   BigInt                @id @default(autoincrement())
+  case_id                                                       BigInt
+  origin_type                                                   String                @db.VarChar(20)
+  progress_id                                                   BigInt?
+  media_type                                                    String                @db.VarChar(20)
+  title                                                         String                @db.VarChar(200)
+  description                                                   String?
+  source                                                        String?               @db.VarChar(150)
+  associated_person_id                                          BigInt?
+  status                                                        String                @default("available") @db.VarChar(30)
+  file_url                                                      String?
+  thumbnail_url                                                 String?
+  collected_at                                                  DateTime?             @db.Timestamptz(6)
+  collected_location                                            String?               @db.VarChar(200)
+  is_hidden_initially                                           Boolean               @default(false)
+  display_order                                                 Int                   @default(0)
+  created_at                                                    DateTime              @default(now()) @db.Timestamptz(6)
+  board_nodes                                                   board_nodes[]
+  persons                                                       persons?              @relation(fields: [associated_person_id], references: [person_id], onUpdate: NoAction)
+  cases                                                         cases                 @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  case_progress                                                 case_progress?        @relation(fields: [progress_id, case_id], references: [progress_id, case_id], onDelete: Cascade, onUpdate: NoAction)
+  findings_findings_evidence_id_progress_idToevidence_items     findings?             @relation("findings_evidence_id_progress_idToevidence_items")
+  findings_findings_src_evidence_idToevidence_items             findings[]            @relation("findings_src_evidence_idToevidence_items")
+  image_regions                                                 image_regions[]
+  lab_comparisons_lab_comparisons_a_evidence_idToevidence_items lab_comparisons[]     @relation("lab_comparisons_a_evidence_idToevidence_items")
+  lab_comparisons_lab_comparisons_b_evidence_idToevidence_items lab_comparisons[]     @relation("lab_comparisons_b_evidence_idToevidence_items")
+  note_attachments                                              note_attachments[]
+  police_observations                                           police_observations[]
+  progress_activity                                             progress_activity[]
+  solution_timeline                                             solution_timeline[]
+  timeline_events                                               timeline_events[]
+  unlock_rules                                                  unlock_rules[]
+
+  @@unique([evidence_id, progress_id])
+  @@index([case_id, origin_type], map: "ix_evidence_case")
+  @@index([progress_id], map: "ix_evidence_progress", where: raw("(progress_id IS NOT NULL)"))
+}
+
+model final_conclusions {
+  conclusion_id       BigInt                @id @default(autoincrement())
+  progress_id         BigInt                @unique
+  reasoning_text      String
+  submitted_at        DateTime?             @db.Timestamptz(6)
+  score_people        Decimal?              @db.Decimal(5, 2)
+  score_evidence      Decimal?              @db.Decimal(5, 2)
+  score_timeline      Decimal?              @db.Decimal(5, 2)
+  score_relationships Decimal?              @db.Decimal(5, 2)
+  score_efficiency    Decimal?              @db.Decimal(5, 2)
+  overall_score       Decimal?              @db.Decimal(5, 2)
+  result_details      Json?
+  conclusion_events   conclusion_events[]
+  conclusion_findings conclusion_findings[]
+  conclusion_people   conclusion_people[]
+  case_progress       case_progress         @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model findings {
+  evidence_id                                                         BigInt                @id
+  progress_id                                                         BigInt
+  display_code                                                        String                @db.VarChar(10)
+  created_via                                                         String                @db.VarChar(25)
+  src_scene_id                                                        BigInt?
+  src_evidence_id                                                     BigInt?
+  src_post_id                                                         BigInt?
+  src_comparison_id                                                   BigInt?
+  src_message_id                                                      BigInt?
+  sel_x                                                               Decimal?              @db.Decimal(6, 5)
+  sel_y                                                               Decimal?              @db.Decimal(6, 5)
+  sel_w                                                               Decimal?              @db.Decimal(6, 5)
+  sel_h                                                               Decimal?              @db.Decimal(6, 5)
+  crop_url                                                            String?
+  ocr_text                                                            String?
+  matched_region_id                                                   BigInt?
+  clue_id                                                             BigInt?
+  conclusion_findings                                                 conclusion_findings[]
+  clues                                                               clues?                @relation(fields: [clue_id], references: [clue_id], onUpdate: NoAction)
+  evidence_items_findings_evidence_id_progress_idToevidence_items     evidence_items        @relation("findings_evidence_id_progress_idToevidence_items", fields: [evidence_id, progress_id], references: [evidence_id, progress_id], onDelete: Cascade, onUpdate: NoAction)
+  image_regions                                                       image_regions?        @relation(fields: [matched_region_id], references: [region_id], onUpdate: NoAction)
+  case_progress                                                       case_progress         @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  lab_comparisons_findings_src_comparison_idTolab_comparisons         lab_comparisons?      @relation("findings_src_comparison_idTolab_comparisons", fields: [src_comparison_id], references: [comparison_id], onUpdate: NoAction)
+  evidence_items_findings_src_evidence_idToevidence_items             evidence_items?       @relation("findings_src_evidence_idToevidence_items", fields: [src_evidence_id], references: [evidence_id], onUpdate: NoAction)
+  interview_messages_findings_src_message_idTointerview_messages      interview_messages?   @relation("findings_src_message_idTointerview_messages", fields: [src_message_id], references: [message_id], onUpdate: NoAction)
+  social_posts                                                        social_posts?         @relation(fields: [src_post_id], references: [post_id], onUpdate: NoAction)
+  crime_scenes                                                        crime_scenes?         @relation(fields: [src_scene_id], references: [scene_id], onUpdate: NoAction)
+  interview_messages_interview_messages_confront_finding_idTofindings interview_messages[]  @relation("interview_messages_confront_finding_idTofindings")
+  lab_comparisons_lab_comparisons_saved_finding_idTofindings          lab_comparisons[]     @relation("lab_comparisons_saved_finding_idTofindings")
+
+  @@unique([progress_id, display_code])
+  @@unique([evidence_id, progress_id], map: "uq_findings_evidence_progress")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model image_regions {
+  region_id                                                    BigInt             @id @default(autoincrement())
+  case_id                                                      BigInt
+  scene_id                                                     BigInt?
+  evidence_id                                                  BigInt?
+  post_id                                                      BigInt?
+  region_type                                                  String             @db.VarChar(20)
+  x                                                            Decimal            @db.Decimal(6, 5)
+  y                                                            Decimal            @db.Decimal(6, 5)
+  w                                                            Decimal            @db.Decimal(6, 5)
+  h                                                            Decimal            @db.Decimal(6, 5)
+  observed_details                                             String?
+  revealed_text                                                String?
+  enhanced_image_url                                           String?
+  clue_id                                                      BigInt?
+  min_overlap                                                  Decimal            @default(0.30) @db.Decimal(3, 2)
+  comparison_rules_comparison_rules_region_a_idToimage_regions comparison_rules[] @relation("comparison_rules_region_a_idToimage_regions")
+  comparison_rules_comparison_rules_region_b_idToimage_regions comparison_rules[] @relation("comparison_rules_region_b_idToimage_regions")
+  findings                                                     findings[]
+  cases                                                        cases              @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  clues                                                        clues?             @relation(fields: [clue_id], references: [clue_id], onUpdate: NoAction)
+  evidence_items                                               evidence_items?    @relation(fields: [evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  social_posts                                                 social_posts?      @relation(fields: [post_id], references: [post_id], onDelete: Cascade, onUpdate: NoAction)
+  crime_scenes                                                 crime_scenes?      @relation(fields: [scene_id], references: [scene_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([case_id], map: "ix_regions_case")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model interview_messages {
+  message_id                                                BigInt                    @id @default(autoincrement())
+  session_id                                                BigInt
+  sender_type                                               String                    @db.VarChar(15)
+  message_type                                              String                    @default("normal") @db.VarChar(15)
+  message_text                                              String
+  confront_finding_id                                       BigInt?
+  created_at                                                DateTime                  @default(now()) @db.Timestamptz(6)
+  findings_findings_src_message_idTointerview_messages      findings[]                @relation("findings_src_message_idTointerview_messages")
+  findings_interview_messages_confront_finding_idTofindings findings?                 @relation("interview_messages_confront_finding_idTofindings", fields: [confront_finding_id], references: [evidence_id], onUpdate: NoAction, map: "fk_msg_confront_finding")
+  interview_sessions                                        interview_sessions        @relation(fields: [session_id], references: [session_id], onDelete: Cascade, onUpdate: NoAction)
+  progress_revealed_facts                                   progress_revealed_facts[]
+  timeline_events                                           timeline_events[]
+
+  @@index([session_id, created_at], map: "ix_messages_session")
+}
+
+model interview_sessions {
+  session_id         BigInt               @id @default(autoincrement())
+  progress_id        BigInt
+  person_id          BigInt
+  started_at         DateTime             @default(now()) @db.Timestamptz(6)
+  last_message_at    DateTime?            @db.Timestamptz(6)
+  interview_messages interview_messages[]
+  persons            persons              @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  case_progress      case_progress        @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  progress_activity  progress_activity[]
+
+  @@unique([progress_id, person_id])
+  @@index([progress_id, person_id], map: "ix_sessions_progress")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model lab_comparisons {
+  comparison_id                                                BigInt              @id @default(autoincrement())
+  progress_id                                                  BigInt
+  a_evidence_id                                                BigInt?
+  a_post_id                                                    BigInt?
+  a_frame_time_sec                                             Decimal?            @db.Decimal(8, 3)
+  a_x                                                          Decimal             @db.Decimal(6, 5)
+  a_y                                                          Decimal             @db.Decimal(6, 5)
+  a_w                                                          Decimal             @db.Decimal(6, 5)
+  a_h                                                          Decimal             @db.Decimal(6, 5)
+  a_adjustments                                                Json?
+  a_crop_url                                                   String?
+  b_evidence_id                                                BigInt?
+  b_post_id                                                    BigInt?
+  b_frame_time_sec                                             Decimal?            @db.Decimal(8, 3)
+  b_x                                                          Decimal             @db.Decimal(6, 5)
+  b_y                                                          Decimal             @db.Decimal(6, 5)
+  b_w                                                          Decimal             @db.Decimal(6, 5)
+  b_h                                                          Decimal             @db.Decimal(6, 5)
+  b_adjustments                                                Json?
+  b_crop_url                                                   String?
+  similarity_score                                             Decimal?            @db.Decimal(4, 3)
+  similarities                                                 Json?
+  differences                                                  Json?
+  matched_rule_id                                              BigInt?
+  created_at                                                   DateTime            @default(now()) @db.Timestamptz(6)
+  saved_finding_id                                             BigInt?
+  findings_findings_src_comparison_idTolab_comparisons         findings[]          @relation("findings_src_comparison_idTolab_comparisons")
+  evidence_items_lab_comparisons_a_evidence_idToevidence_items evidence_items?     @relation("lab_comparisons_a_evidence_idToevidence_items", fields: [a_evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  social_posts_lab_comparisons_a_post_idTosocial_posts         social_posts?       @relation("lab_comparisons_a_post_idTosocial_posts", fields: [a_post_id], references: [post_id], onDelete: Cascade, onUpdate: NoAction)
+  evidence_items_lab_comparisons_b_evidence_idToevidence_items evidence_items?     @relation("lab_comparisons_b_evidence_idToevidence_items", fields: [b_evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  social_posts_lab_comparisons_b_post_idTosocial_posts         social_posts?       @relation("lab_comparisons_b_post_idTosocial_posts", fields: [b_post_id], references: [post_id], onDelete: Cascade, onUpdate: NoAction)
+  comparison_rules                                             comparison_rules?   @relation(fields: [matched_rule_id], references: [rule_id], onUpdate: NoAction)
+  case_progress                                                case_progress       @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  findings_lab_comparisons_saved_finding_idTofindings          findings?           @relation("lab_comparisons_saved_finding_idTofindings", fields: [saved_finding_id], references: [evidence_id], onUpdate: NoAction)
+  progress_activity                                            progress_activity[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model note_attachments {
+  attachment_id     BigInt           @id @default(autoincrement())
+  note_id           BigInt
+  evidence_id       BigInt?
+  person_id         BigInt?
+  timeline_event_id BigInt?
+  statement_id      BigInt?
+  evidence_items    evidence_items?  @relation(fields: [evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  notebook_notes    notebook_notes   @relation(fields: [note_id], references: [note_id], onDelete: Cascade, onUpdate: NoAction)
+  persons           persons?         @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  statements        statements?      @relation(fields: [statement_id], references: [statement_id], onDelete: Cascade, onUpdate: NoAction)
+  timeline_events   timeline_events? @relation(fields: [timeline_event_id], references: [event_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model notebook_notes {
+  note_id          BigInt             @id @default(autoincrement())
+  progress_id      BigInt
+  category         String             @db.VarChar(20)
+  title            String             @db.VarChar(200)
+  body             String?
+  is_pinned        Boolean            @default(false)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  note_attachments note_attachments[]
+  case_progress    case_progress      @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([progress_id], map: "ix_notes_prog")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model person_connections {
+  connection_id                                   BigInt         @id @default(autoincrement())
+  case_id                                         BigInt
+  person_a_id                                     BigInt
+  person_b_id                                     BigInt
+  relation_label                                  String         @db.VarChar(100)
+  description                                     String?
+  is_hidden_initially                             Boolean        @default(false)
+  cases                                           cases          @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  persons_person_connections_person_a_idTopersons persons        @relation("person_connections_person_a_idTopersons", fields: [person_a_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  persons_person_connections_person_b_idTopersons persons        @relation("person_connections_person_b_idTopersons", fields: [person_b_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  unlock_rules                                    unlock_rules[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model persons {
+  person_id                                                             BigInt                   @id @default(autoincrement())
+  case_id                                                               BigInt
+  full_name                                                             String                   @db.VarChar(120)
+  person_role                                                           String                   @db.VarChar(20)
+  status_label                                                          String?                  @db.VarChar(60)
+  relation_to_victim                                                    String?                  @db.VarChar(120)
+  age                                                                   Int?
+  occupation                                                            String?                  @db.VarChar(120)
+  bio                                                                   String?
+  stated_alibi                                                          String?
+  photo_url                                                             String?
+  personality_prompt                                                    String?
+  speaking_style                                                        String?
+  is_interrogable                                                       Boolean                  @default(true)
+  is_hidden_initially                                                   Boolean                  @default(false)
+  display_order                                                         Int                      @default(0)
+  board_nodes                                                           board_nodes[]
+  cases_cases_victim_person_idTopersons                                 cases[]                  @relation("cases_victim_person_idTopersons")
+  character_knowledge                                                   character_knowledge[]
+  conclusion_people                                                     conclusion_people[]
+  evidence_items                                                        evidence_items[]
+  interview_sessions                                                    interview_sessions[]
+  note_attachments                                                      note_attachments[]
+  person_connections_person_connections_person_a_idTopersons            person_connections[]     @relation("person_connections_person_a_idTopersons")
+  person_connections_person_connections_person_b_idTopersons            person_connections[]     @relation("person_connections_person_b_idTopersons")
+  cases_persons_case_idTocases                                          cases                    @relation("persons_case_idTocases", fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  social_post_tags                                                      social_post_tags[]
+  social_posts                                                          social_posts[]
+  solution_culprits                                                     solution_culprits[]
+  solution_relationships_solution_relationships_from_person_idTopersons solution_relationships[] @relation("solution_relationships_from_person_idTopersons")
+  solution_relationships_solution_relationships_to_person_idTopersons   solution_relationships[] @relation("solution_relationships_to_person_idTopersons")
+  statements                                                            statements[]
+  timeline_events                                                       timeline_events[]
+  unlock_rules_unlock_rules_trigger_person_idTopersons                  unlock_rules[]           @relation("unlock_rules_trigger_person_idTopersons")
+  unlock_rules_unlock_rules_unlock_person_idTopersons                   unlock_rules[]           @relation("unlock_rules_unlock_person_idTopersons")
+
+  @@unique([person_id, case_id])
+  @@index([case_id], map: "ix_persons_case")
+}
+
+model police_observations {
+  observation_id      BigInt            @id @default(autoincrement())
+  case_id             BigInt
+  location            String?           @db.VarChar(200)
+  description         String
+  source              String?           @db.VarChar(150)
+  logged_at           DateTime?         @db.Timestamptz(6)
+  related_evidence_id BigInt?
+  display_order       Int               @default(0)
+  is_hidden_initially Boolean           @default(false)
+  board_nodes         board_nodes[]
+  cases               cases             @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  evidence_items      evidence_items?   @relation(fields: [related_evidence_id], references: [evidence_id], onUpdate: NoAction)
+  timeline_events     timeline_events[]
+  unlock_rules        unlock_rules[]
+
+  @@index([case_id], map: "ix_obs_case")
+}
+
+model police_reports {
+  report_id           BigInt            @id @default(autoincrement())
+  case_id             BigInt
+  report_type         String            @db.VarChar(50)
+  title               String            @db.VarChar(200)
+  author              String?           @db.VarChar(120)
+  source              String?           @db.VarChar(150)
+  report_date         DateTime?         @db.Timestamptz(6)
+  content             String
+  display_order       Int               @default(0)
+  is_hidden_initially Boolean           @default(false)
+  board_nodes         board_nodes[]
+  cases               cases             @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  timeline_events     timeline_events[]
+  unlock_rules        unlock_rules[]
+
+  @@index([case_id], map: "ix_reports_case")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model progress_activity {
+  activity_id        BigInt              @id @default(autoincrement())
+  progress_id        BigInt
+  action_type        String              @db.VarChar(30)
+  points_delta       Int                 @default(0)
+  points_after       Int
+  ref_evidence_id    BigInt?
+  ref_session_id     BigInt?
+  ref_comparison_id  BigInt?
+  description        String?             @db.VarChar(255)
+  idempotency_key    String?             @db.VarChar(100)
+  created_at         DateTime            @default(now()) @db.Timestamptz(6)
+  case_progress      case_progress       @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  lab_comparisons    lab_comparisons?    @relation(fields: [ref_comparison_id], references: [comparison_id], onUpdate: NoAction)
+  evidence_items     evidence_items?     @relation(fields: [ref_evidence_id], references: [evidence_id], onUpdate: NoAction)
+  interview_sessions interview_sessions? @relation(fields: [ref_session_id], references: [session_id], onUpdate: NoAction)
+
+  @@unique([progress_id, idempotency_key])
+  @@index([progress_id, created_at(sort: Desc)], map: "ix_activity_prog")
+}
+
+model progress_revealed_facts {
+  progress_id         BigInt
+  knowledge_id        BigInt
+  message_id          BigInt?
+  revealed_at         DateTime            @default(now()) @db.Timestamptz(6)
+  character_knowledge character_knowledge @relation(fields: [knowledge_id], references: [knowledge_id], onDelete: Cascade, onUpdate: NoAction)
+  interview_messages  interview_messages? @relation(fields: [message_id], references: [message_id], onUpdate: NoAction)
+  case_progress       case_progress       @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([progress_id, knowledge_id])
+}
+
+model progress_unlocks {
+  progress_id   BigInt
+  rule_id       BigInt
+  unlocked_at   DateTime      @default(now()) @db.Timestamptz(6)
+  seen          Boolean       @default(false)
+  case_progress case_progress @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  unlock_rules  unlock_rules  @relation(fields: [rule_id], references: [rule_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([progress_id, rule_id])
+}
+
+model social_post_tags {
+  post_id      BigInt
+  person_id    BigInt
+  persons      persons      @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  social_posts social_posts @relation(fields: [post_id], references: [post_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([post_id, person_id])
+}
+
+model social_posts {
+  post_id                                                 BigInt             @id @default(autoincrement())
+  case_id                                                 BigInt
+  person_id                                               BigInt
+  platform                                                String?            @db.VarChar(30)
+  image_url                                               String?
+  caption                                                 String?
+  posted_at                                               DateTime?          @db.Timestamptz(6)
+  location                                                String?            @db.VarChar(200)
+  is_hidden_initially                                     Boolean            @default(false)
+  findings                                                findings[]
+  image_regions                                           image_regions[]
+  lab_comparisons_lab_comparisons_a_post_idTosocial_posts lab_comparisons[]  @relation("lab_comparisons_a_post_idTosocial_posts")
+  lab_comparisons_lab_comparisons_b_post_idTosocial_posts lab_comparisons[]  @relation("lab_comparisons_b_post_idTosocial_posts")
+  social_post_tags                                        social_post_tags[]
+  cases                                                   cases              @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  persons                                                 persons            @relation(fields: [person_id, case_id], references: [person_id, case_id], onDelete: Cascade, onUpdate: NoAction)
+  unlock_rules                                            unlock_rules[]
+
+  @@index([person_id], map: "ix_posts_person")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model solution_clues {
+  case_id        BigInt
+  clue_id        BigInt
+  importance     String         @db.VarChar(15)
+  case_solutions case_solutions @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  clues          clues          @relation(fields: [clue_id], references: [clue_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([case_id, clue_id])
+}
+
+model solution_culprits {
+  case_id        BigInt
+  person_id      BigInt
+  case_solutions case_solutions @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  persons        persons        @relation(fields: [person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([case_id, person_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model solution_relationships {
+  sol_rel_id                                             BigInt         @id @default(autoincrement())
+  case_id                                                BigInt
+  from_person_id                                         BigInt?
+  from_clue_id                                           BigInt?
+  to_person_id                                           BigInt?
+  to_clue_id                                             BigInt?
+  relation_type                                          String         @db.VarChar(30)
+  case_solutions                                         case_solutions @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  clues_solution_relationships_from_clue_idToclues       clues?         @relation("solution_relationships_from_clue_idToclues", fields: [from_clue_id], references: [clue_id], onDelete: Cascade, onUpdate: NoAction)
+  persons_solution_relationships_from_person_idTopersons persons?       @relation("solution_relationships_from_person_idTopersons", fields: [from_person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  clues_solution_relationships_to_clue_idToclues         clues?         @relation("solution_relationships_to_clue_idToclues", fields: [to_clue_id], references: [clue_id], onDelete: Cascade, onUpdate: NoAction)
+  persons_solution_relationships_to_person_idTopersons   persons?       @relation("solution_relationships_to_person_idTopersons", fields: [to_person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model solution_timeline {
+  sol_event_id       BigInt          @id @default(autoincrement())
+  case_id            BigInt
+  seq                Int
+  title              String          @db.VarChar(200)
+  occurred_at        DateTime?       @db.Timestamptz(6)
+  match_clue_id      BigInt?
+  match_statement_id BigInt?
+  match_evidence_id  BigInt?
+  case_solutions     case_solutions  @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  clues              clues?          @relation(fields: [match_clue_id], references: [clue_id], onUpdate: NoAction)
+  evidence_items     evidence_items? @relation(fields: [match_evidence_id], references: [evidence_id], onUpdate: NoAction)
+  statements         statements?     @relation(fields: [match_statement_id], references: [statement_id], onUpdate: NoAction)
+
+  @@unique([case_id, seq])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model statements {
+  statement_id        BigInt              @id @default(autoincrement())
+  case_id             BigInt
+  person_id           BigInt
+  statement_type      String              @db.VarChar(20)
+  title               String?             @db.VarChar(200)
+  statement_text      String
+  recorded_at         DateTime?           @db.Timestamptz(6)
+  source              String?             @db.VarChar(150)
+  display_order       Int                 @default(0)
+  is_hidden_initially Boolean             @default(false)
+  board_nodes         board_nodes[]
+  note_attachments    note_attachments[]
+  solution_timeline   solution_timeline[]
+  cases               cases               @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  persons             persons             @relation(fields: [person_id, case_id], references: [person_id, case_id], onDelete: Cascade, onUpdate: NoAction)
+  timeline_events     timeline_events[]
+  unlock_rules        unlock_rules[]
+
+  @@index([case_id], map: "ix_statements_case")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model timeline_conflicts {
+  conflict_id                                                    BigInt          @id @default(autoincrement())
+  progress_id                                                    BigInt
+  event_a_id                                                     BigInt
+  event_b_id                                                     BigInt
+  note                                                           String?
+  created_at                                                     DateTime        @default(now()) @db.Timestamptz(6)
+  timeline_events_timeline_conflicts_event_a_idTotimeline_events timeline_events @relation("timeline_conflicts_event_a_idTotimeline_events", fields: [event_a_id], references: [event_id], onDelete: Cascade, onUpdate: NoAction)
+  timeline_events_timeline_conflicts_event_b_idTotimeline_events timeline_events @relation("timeline_conflicts_event_b_idTotimeline_events", fields: [event_b_id], references: [event_id], onDelete: Cascade, onUpdate: NoAction)
+  case_progress                                                  case_progress   @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([event_a_id, event_b_id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model timeline_events {
+  event_id                                                          BigInt               @id @default(autoincrement())
+  progress_id                                                       BigInt
+  event_time                                                        DateTime             @db.Timestamptz(6)
+  time_precision                                                    String               @default("exact") @db.VarChar(10)
+  event_time_end                                                    DateTime?            @db.Timestamptz(6)
+  title                                                             String               @db.VarChar(200)
+  description                                                       String?
+  claim_status                                                      String               @db.VarChar(15)
+  src_evidence_id                                                   BigInt?
+  src_statement_id                                                  BigInt?
+  src_report_id                                                     BigInt?
+  src_observation_id                                                BigInt?
+  src_message_id                                                    BigInt?
+  linked_person_id                                                  BigInt?
+  created_at                                                        DateTime             @default(now()) @db.Timestamptz(6)
+  board_nodes                                                       board_nodes[]
+  conclusion_events                                                 conclusion_events[]
+  note_attachments                                                  note_attachments[]
+  timeline_conflicts_timeline_conflicts_event_a_idTotimeline_events timeline_conflicts[] @relation("timeline_conflicts_event_a_idTotimeline_events")
+  timeline_conflicts_timeline_conflicts_event_b_idTotimeline_events timeline_conflicts[] @relation("timeline_conflicts_event_b_idTotimeline_events")
+  persons                                                           persons?             @relation(fields: [linked_person_id], references: [person_id], onUpdate: NoAction)
+  case_progress                                                     case_progress        @relation(fields: [progress_id], references: [progress_id], onDelete: Cascade, onUpdate: NoAction)
+  evidence_items                                                    evidence_items?      @relation(fields: [src_evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  interview_messages                                                interview_messages?  @relation(fields: [src_message_id], references: [message_id], onDelete: Cascade, onUpdate: NoAction)
+  police_observations                                               police_observations? @relation(fields: [src_observation_id], references: [observation_id], onDelete: Cascade, onUpdate: NoAction)
+  police_reports                                                    police_reports?      @relation(fields: [src_report_id], references: [report_id], onDelete: Cascade, onUpdate: NoAction)
+  statements                                                        statements?          @relation(fields: [src_statement_id], references: [statement_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([progress_id, event_time], map: "ix_timeline_prog")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model unlock_rules {
+  rule_id                                         BigInt               @id @default(autoincrement())
+  case_id                                         BigInt
+  trigger_type                                    String               @db.VarChar(20)
+  trigger_clue_id                                 BigInt
+  trigger_person_id                               BigInt?
+  unlock_person_id                                BigInt?
+  unlock_evidence_id                              BigInt?
+  unlock_statement_id                             BigInt?
+  unlock_report_id                                BigInt?
+  unlock_observation_id                           BigInt?
+  unlock_post_id                                  BigInt?
+  unlock_scene_id                                 BigInt?
+  unlock_connection_id                            BigInt?
+  notify_message                                  String?              @db.VarChar(255)
+  progress_unlocks                                progress_unlocks[]
+  cases                                           cases                @relation(fields: [case_id], references: [case_id], onDelete: Cascade, onUpdate: NoAction)
+  clues                                           clues                @relation(fields: [trigger_clue_id], references: [clue_id], onDelete: Cascade, onUpdate: NoAction)
+  persons_unlock_rules_trigger_person_idTopersons persons?             @relation("unlock_rules_trigger_person_idTopersons", fields: [trigger_person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  person_connections                              person_connections?  @relation(fields: [unlock_connection_id], references: [connection_id], onDelete: Cascade, onUpdate: NoAction)
+  evidence_items                                  evidence_items?      @relation(fields: [unlock_evidence_id], references: [evidence_id], onDelete: Cascade, onUpdate: NoAction)
+  police_observations                             police_observations? @relation(fields: [unlock_observation_id], references: [observation_id], onDelete: Cascade, onUpdate: NoAction)
+  persons_unlock_rules_unlock_person_idTopersons  persons?             @relation("unlock_rules_unlock_person_idTopersons", fields: [unlock_person_id], references: [person_id], onDelete: Cascade, onUpdate: NoAction)
+  social_posts                                    social_posts?        @relation(fields: [unlock_post_id], references: [post_id], onDelete: Cascade, onUpdate: NoAction)
+  police_reports                                  police_reports?      @relation(fields: [unlock_report_id], references: [report_id], onDelete: Cascade, onUpdate: NoAction)
+  crime_scenes                                    crime_scenes?        @relation(fields: [unlock_scene_id], references: [scene_id], onDelete: Cascade, onUpdate: NoAction)
+  statements                                      statements?          @relation(fields: [unlock_statement_id], references: [statement_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([case_id, trigger_clue_id], map: "ix_unlock_trigger")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  user_id                                        BigInt          @id @default(autoincrement())
+  full_name                                      String          @db.VarChar(120)
+  username                                       String          @unique @db.VarChar(50)
+  email                                          String          @unique @db.VarChar(255)
+  password_hash                                  String
+  role                                           String          @default("investigator") @db.VarChar(20)
+  is_active                                      Boolean         @default(true)
+  last_login_at                                  DateTime?       @db.Timestamptz(6)
+  created_at                                     DateTime        @default(now()) @db.Timestamptz(6)
+  case_progress_case_progress_assigned_byTousers case_progress[] @relation("case_progress_assigned_byTousers")
+  case_progress_case_progress_user_idTousers     case_progress[] @relation("case_progress_user_idTousers")
+  cases                                          cases[]
+}
