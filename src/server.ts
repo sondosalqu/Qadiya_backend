@@ -1,11 +1,8 @@
-import express from "express";
+import { createApp } from "./app.js";
+import { env } from "./config/env.js";
 
-const app = express();
+const app = createApp();
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", time: new Date().toISOString() });
-});
-
-app.listen(4000, () => {
-  console.log("🔎 QADIYA API running on http://localhost:4000/api/health");
+app.listen(env.PORT, () => {
+  console.log(`🔎 QADIYA API running on http://localhost:${env.PORT}/api/health`);
 });
