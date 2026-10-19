@@ -3,6 +3,8 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import { prisma } from "./lib/prisma.js";
+import { apiRouter } from "./routes/index.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 
 export function createApp() {
   const app = express();
@@ -18,10 +20,8 @@ export function createApp() {
     res.json({ status: "ok", database: "connected", time: new Date().toISOString() });
   });
 
-  // أي رابط مش موجود
-  app.use((req, res) => {
-    res.status(404).json({ error: { code: "ROUTE_NOT_FOUND", message: `Route ${req.method} ${req.path} not found` } });
-  });
-
+  app.use("/api", apiRouter);
+  app.use(notFoundHandler);
+  app.use(errorHandler);
   return app;
 }
