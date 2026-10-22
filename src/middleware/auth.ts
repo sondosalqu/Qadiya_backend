@@ -19,7 +19,6 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-// لازم يكون إله الدور المطلوب
 export function requireRole(...roles: TokenPayload["role"][]) {
   return (_req: Request, res: Response, next: NextFunction) => {
     if (!roles.includes(res.locals.user?.role)) {
