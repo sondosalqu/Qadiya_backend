@@ -5,6 +5,7 @@ import morgan from "morgan";
 import { prisma } from "./lib/prisma.js";
 import { apiRouter } from "./routes/index.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { env } from "./config/env.js";
 
 export function createApp() {
   const app = express();
@@ -18,6 +19,15 @@ export function createApp() {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "ok", database: "connected", time: new Date().toISOString() });
   });
+
+
+
+  app.use(
+    "/uploads",
+    express.static("uploads", {
+      setHeaders: (res) => res.set("Cross-Origin-Resource-Policy", "cross-origin"),
+    }),
+  );
 
   app.use("/api", apiRouter);
   app.use(notFoundHandler); 
