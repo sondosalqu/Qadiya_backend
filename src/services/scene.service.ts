@@ -1,9 +1,25 @@
 import { prisma } from "../lib/prisma.js";
 import { HttpError } from "../utils/HttpError.js";
+import { toPublicUrl } from "./storage.service.js";
 import type { InspectInput } from "../validators/scene.validator.js";
 
 
 const MAX_TOLERANCE = 0.03;
+
+// أشياء بالمسرح بتفتح نافذة، حسب أول الكود تبع الـclue:
+//   DEV-  جهاز (فلاشة، لابتوب...)  ← ملفات
+//   DOC-  ورقة                     ← صفحات
+//   BOOK- كتاب                     ← صفحات (صفحتين جنب بعض)
+// المحتوى = evidence_items الـcollected_location تبعها = نفس الكود
+export type ContainerKind = "device" | "document" | "book";
+
+export function containerKind(code: string | null | undefined): ContainerKind | null {
+  if (!code) return null;
+  if (code.startsWith("DEV-")) return "device";
+  if (code.startsWith("DOC-")) return "document";
+  if (code.startsWith("BOOK-")) return "book";
+  return null;
+}
 
 export type Box = { x: number; y: number; w: number; h: number };
 
@@ -132,7 +148,7 @@ export async function getScene(userId: bigint, sceneId: bigint) {
       scene_id: scene.scene_id.toString(),
       title: scene.title,
       description: scene.description,
-      image_url: scene.image_url,
+      image_url: toPublicUrl(scene.image_url),
       image_width: scene.image_width,
       image_height: scene.image_height,
     },
@@ -156,12 +172,30 @@ export async function inspectPoint(userId: bigint, sceneId: bigint, input: Inspe
   const base = { region_id: hit.region_id.toString(), title, details };
 
   const clue = hit.clues;
-  if (!clue || !clue.code.startsWith("DEV-")) {
+  const kind = containerKind(clue?.code);
+  if (!clue || !kind) {
     return { type: "object" as const, ...base };
   }
 
+  // فتحه = لقاه: بيكشف أي إشي مربوط فيه
   const notifications = await unlockByClue(progress.progress_id, scene.case_id, clue.clue_id);
-  const files = await getDeviceFiles(progress.progress_id, scene.case_id, clue.code);
+  const files = await getContainerFiles(progress.progress_id, scene.case_id, clue.code);
+
+  if (kind !== "device") {
+    return {
+      type: "document" as const,
+      ...base,
+      document: {
+        document_id: clue.clue_id.toString(),
+        kind: kind === "book" ? ("book" as const) : ("note" as const),
+        title: clue.title,
+        pages: files
+          .filter((f) => f.file_url && ["image", "document"].includes(f.type))
+          .map((f, i) => ({ evidence_id: f.evidence_id, page: i + 1, name: f.name, image_url: f.file_url })),
+      },
+      notifications,
+    };
+  }
 
   return {
     type: "device" as const,
@@ -177,12 +211,13 @@ export async function inspectPoint(userId: bigint, sceneId: bigint, input: Inspe
 }
 
 
-async function getDeviceFiles(progressId: bigint, caseId: bigint, deviceCode: string) {
+// ملفات جهاز أو صفحات ورقة/كتاب: الظاهرة من الأول + اللي انكشفت لهاللاعب
+async function getContainerFiles(progressId: bigint, caseId: bigint, containerCode: string) {
   const files = await prisma.evidence_items.findMany({
     where: {
       case_id: caseId,
       origin_type: "police",
-      collected_location: deviceCode,
+      collected_location: containerCode,
       OR: [
         { is_hidden_initially: false },
         { unlock_rules: { some: { progress_unlocks: { some: { progress_id: progressId } } } } },
@@ -192,15 +227,15 @@ async function getDeviceFiles(progressId: bigint, caseId: bigint, deviceCode: st
       evidence_id: true, title: true, media_type: true,
       file_url: true, thumbnail_url: true, collected_at: true,
     },
-    orderBy: { title: "asc" },
+    orderBy: [{ display_order: "asc" }, { title: "asc" }],
   });
 
   return files.map((f) => ({
     evidence_id: f.evidence_id.toString(),
     name: f.title,
     type: f.media_type,
-    file_url: f.file_url,
-    thumbnail_url: f.thumbnail_url,
+    file_url: toPublicUrl(f.file_url),
+    thumbnail_url: toPublicUrl(f.thumbnail_url),
     modified_at: f.collected_at?.toISOString() ?? null,
   }));
-}
+}

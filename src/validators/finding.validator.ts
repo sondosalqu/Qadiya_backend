@@ -40,6 +40,16 @@ export const saveFindingSchema = z.discriminatedUnion("kind", [
     w: size,
     h: size,
   }),
+
+  // سطر أو فقرة اختارها اللاعب من ورقة/كتاب: بينحفظ مع النص
+  z.object({
+    kind: z.literal("text_selection"),
+    evidence_id: idString,
+    x: ratio,
+    y: ratio,
+    w: size,
+    h: size,
+  }),
 ]);
 
 export type SaveFindingInput = z.infer<typeof saveFindingSchema>;
